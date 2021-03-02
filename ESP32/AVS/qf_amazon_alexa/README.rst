@@ -81,7 +81,7 @@ See the example "export_idf_paths.sh" in this directory. Here are the contents f
     Note that AUDIO_BOARD_PATH for LyraT board is replaced by a path that is part
     "qf_amazon_alexa" example specific to QuickLogic
 
-5. Exit MING32 and reopen again for the script file to be automatically executed
+5. Exit MINGW32 and reopen again for the script file to be automatically executed
 
 6. Then build and flash the image to DevKiTC-VE
 
