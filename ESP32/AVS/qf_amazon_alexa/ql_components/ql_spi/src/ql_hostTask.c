@@ -12,20 +12,12 @@
  *                                                          
  *=========================================================*/
 #include <string.h>
-//#include "Fw_global_config.h"
-
-//#include "FreeRTOS.h"
-//#include "timers.h"
 
 #include "ql_hostTask.h"
-//#include "RtosTask.h"
-//#include "dbg_uart.h"
 #include "qlspi_s3.h"
 #include "qlspi_fw_loader.h"
 #include "firmware_raw_image.h" 
 #include "h2d_protocol.h"
-//#include "eoss3_hal_gpio.h"
-//#include "eoss3_hal_spi.h"
 
 #include "soc/gpio_struct.h"
 #include "driver/gpio.h"
@@ -40,12 +32,6 @@ xTaskHandle xHandleTaskHost;
 QueueHandle_t Host_MsgQ;
 
 //extern int spi_master_init(uint32_t baud_rate);
-
-#if DEBUG_H2D_PROTOCOL
-uint8_t test_write_buf [DATA_READ_WRITE_SIZE] = {0};
-uint8_t test_read_buf [DATA_READ_WRITE_SIZE] = {0};
-uint8_t pattern = 0xAC;
-#endif
 
 #define HOST_TRANSPORT_CHUNK_SIZE  1024
 #define NUM_TRANSPORT_CHUNKS       (50*3)
@@ -203,90 +189,10 @@ struct  {
 };
 void display_rx_buf_addr_size(void)
 {
-    //dbg_str_hex32("RX buffer memory address  = ", (uint32_t)g_p_rx_storage_buffer);
-    //dbg_str_hex32("RX buffer size to read  = ", storage_wr_index);
-    //dbg_str_hex32("RX buffer mem end address  = ", (uint32_t)(g_p_rx_storage_buffer + storage_wr_index));
-    //dbg_str_int("channel = ",o_channel_info.channel);
-//    int byte_count = o_channel_info.packet_size; 
-    //dbg_str_int("byte_count = ",byte_count);
-    //dbg_str_int("channel number = ",g_host_device_channel_num);
-    //dbg_str_fraction("duration = ", g_recorded_duration, 1000);
     g_recorded_duration = 0;
     g_ts_last = -1;
     g_seq_num_last = -1;
 }
-
-#if TST_HEADER_VERIFY == 1
-int q_raw_seqnum = -1;
-int check_packet(uint8_t *p_chunk, int sz)
-{
-  int ret = 0;
-  uint32_t* p_int = (uint32_t*)p_chunk;
-#if 1
-  uint32_t csum_ref = p_int[2];
-  uint32_t csum = 0;
-    for(int n = 4; n < sz>>2; n++)
-    {
-      csum += p_int[n];
-    }
-    if(csum_ref != csum)
-    {
-      printf("ERROR at %d : %x %x \n", p_int[3], csum_ref, csum);
-    }
-   else
-   {
-   }
-#endif
-   if(p_chunk[0] != 0) // numUseCount
-   {
-   }
-     if(p_chunk[1] != 0) // numDropCount
-   {
-     printf(" numDropCount = %d ", p_chunk[1]);
-   }
-   if(p_int[3] - q_raw_seqnum != 1 & q_raw_seqnum != -1)
-   {
-      printf("ERROR at %d : %d %d %d\n", p_int[3], p_int[3], q_raw_seqnum, p_int[3] - q_raw_seqnum);
-   }
-   q_raw_seqnum = p_int[3];
- return 0;
-}
-void check_chunk(uint8_t *p_chunk, int sz)
-{
-  int block_sz = (sz>>2);
-  check_packet(p_chunk, block_sz);
-  check_packet(&p_chunk[block_sz], block_sz);
-  check_packet(&p_chunk[block_sz*2], block_sz);
-  check_packet(&p_chunk[block_sz*3], block_sz);
-  q_raw_seqnum = -1; // reset 
-}
-#endif
-
-#if 0 
-#include "datablk_mgr.h"
-int8_t *prn_hdr( QAI_DataBlock_t *pdata_block_in)
-{
-  int8_t *p_in = 0;
-#if TST_HEADER_VERIFY == 1
-  p_in =   (int8_t *)((uint8_t *)pdata_block_in  + offsetof(QAI_DataBlock_t, p_data));
-  //printf("%d %d\n", pdata_block_in->dbHeader.Tstart, pdata_block_in->dbHeader.Tend);
-  if( pdata_block_in->dbHeader.Tend != g_seq_num_last + 4  && g_seq_num_last != -1)
-  {
-    printf(" >>> [%d - %d = %d]", g_seq_num_last, pdata_block_in->dbHeader.Tend, pdata_block_in->dbHeader.Tend- g_seq_num_last);
-  }
-  else
-  {
-    if(g_seq_num_last != -1)
-      g_recorded_duration += (pdata_block_in->dbHeader.Tstart - g_ts_last);
-  }     
-  g_seq_num_last = pdata_block_in->dbHeader.Tend;
-  g_ts_last = pdata_block_in->dbHeader.Tstart;
-#else
-  p_in = (int8_t *)((uint8_t *)pdata_block_in );
-#endif
-  return p_in;
-}
-#endif
 
 void store_raw_transport_chunks(int32_t kbytes)
 {
@@ -333,7 +239,6 @@ void store_opus_transport_chunks(int length)
     unfilled_data_size -= payload_len;
 }
 
-
 /*  Add Msg to the Host task queue */
 uint32_t addPktToQueue_Host(struct xQ_Packet *pxMsg, int ctx)
 {
@@ -373,20 +278,6 @@ Rx_Cb_Ret h2d_receive_callback(H2D_Cmd_Info rx_cmd_info, uint8_t data_buf_ready)
 {
     Rx_Cb_Ret ret = {0};
     struct xQ_Packet rxPkt = {0};
-#if DEBUG_H2D_PROTOCOL
-    dbg_str("callback invoked\n");
-
-    // display the unpacked cmd received
-    dbg_str_int("seq = ",rx_cmd_info.seq);
-    dbg_str_int("channel = ",rx_cmd_info.channel);
-    dbg_str_int("cmd = ",rx_cmd_info.cmd);
-    dbg_str_int("data[0] = ",rx_cmd_info.data[0]);
-    dbg_str_int("data[1] = ",rx_cmd_info.data[1]);
-    dbg_str_int("data[2] = ",rx_cmd_info.data[2]);
-    dbg_str_int("data[3] = ",rx_cmd_info.data[3]);
-    dbg_str_int("data[4] = ",rx_cmd_info.data[4]);
-    dbg_str_int("data[5] = ",rx_cmd_info.data[5]);
-#endif
     /* Check if the cmd received is EVT_OPUS_PKT_READY
         if yes, read the address and len from the data field and
         read that data over qlspi and store it in opus buffer
@@ -563,13 +454,6 @@ void hostTaskHandler(void * parameter)
     BaseType_t qret;
     //unsigned int hostTaskStop = 0;
     struct xQ_Packet hostMsg = {0};
-#if DEBUG_H2D_PROTOCOL
-    int i = 0;
-    for(i=0;i<DATA_READ_WRITE_SIZE; ++i)
-    {
-        test_write_buf[i] = i;
-    }
-#endif
 
 #if (DISABLE_AVS_CONNECTION == 1)
     //use 5 sec timeout when Amazon cloud is disabled
@@ -738,56 +622,17 @@ extern void set_ql_dsp_detected_state(int offset);
             
         case HOST_CMD_READ_DATA_FROM_S3 :
             // for debug/testing purpose only
-#if DEBUG_H2D_PROTOCOL
-            dbg_str("received cmd HOST_CMD_READ_DATA_FROM_S3\n");
-            QLSPI_Read_S3_Mem(H2D_READ_ADDR,test_read_buf,DATA_READ_WRITE_SIZE);
-            dbg_memdump8((intptr_t)(test_read_buf),(void *)(test_read_buf),DATA_READ_WRITE_SIZE);
-#endif
             break;
             
         case HOST_CMD_WRTIE_DATA_TO_S3 :
             {
               // for debug/testing purpose only
-#if DEBUG_H2D_PROTOCOL
-                dbg_str("received cmd HOST_CMD_WRTIE_DATA_TO_S3\n");
-                int i = 0;
-                for(i=0;i<DATA_READ_WRITE_SIZE; ++i)
-                {
-                    test_write_buf[i] = pattern;
-                }
-                dbg_memdump8((intptr_t)(test_write_buf),(void *)(test_write_buf),DATA_READ_WRITE_SIZE);
-                QLSPI_Write_S3_Mem(H2D_WRITE_ADDR,test_write_buf,DATA_READ_WRITE_SIZE);
-#endif
             break;
             }
             
         case HOST_SEND_CMD_TO_DEVICE :
             {
               // for debug/testing purpose only
-#if DEBUG_H2D_PROTOCOL
-                H2D_Cmd_Info cmd_info = {0};
-                cmd_info.channel = CHANNEL_DUMMY_1;
-                /*
-                seq++;
-                if(0xf <= seq) {
-                  seq = 0;
-                }
-                  */
-                
-                ;
-                cmd_info.seq = increment_seq();
-                cmd_info.cmd = CMD_DUMMY_1;
-                cmd_info.data[0] = 0x01;
-                cmd_info.data[1] = 0x11;
-                cmd_info.data[2] = 0x22;
-                cmd_info.data[3] = 0x33;
-                cmd_info.data[4] = 0x44;
-                cmd_info.data[5] = 0x55;
-                
-                if (h2d_transmit_cmd(&cmd_info)){
-                    dbg_str("Error returned from h2d tansmit api\n");
-                }
-#endif
                 break;
             }
         case HOST_SEND_CMD_STOP_STREAMING:
@@ -853,20 +698,14 @@ extern void set_ql_spi_data_state(int ready);
 #endif
     return;
 }
-#if 1 //1=detect KP in stream
 
 //this is called when Voice Assitant state changes from VA_SPEAKING to VA_IDLE
-// or VA_SPEAKING to VA_IDLE
+// or VA_THINKING to VA_IDLE
 void stopQFAudiostream(void)
 {
-#if 1
     //first stop the timer
     xTimerStop(StreamTimerHandle, 0);
     StreamTimerCB(NULL);
-#else
-extern void set_ql_spi_data_state(int ready);
-    set_ql_spi_data_state(0);
-#endif
 }
 //this is called when Voice Assitant calls va_app_speech_stop()
 void stopQFAudioInput(void)
@@ -878,18 +717,6 @@ extern void set_ql_spi_data_state(int ready);
     set_ql_spi_data_state(0);
 
 }
-#else
-void stopQFAudioInput(void)
-{
-    //first stop the timer
-    xTimerStop(StreamTimerHandle, 0);
-    StreamTimerCB(NULL);
-}
-void stopQFAudiostream(void)
-{
-    return;
-}
-#endif
 
 #define PRIORITY_TASK_HOST              (configMAX_PRIORITIES - 9) //(CONFIG_ESP32_PTHREAD_TASK_PRIO_DEFAULT + 1)
 #define STACK_SIZE_TASK_HOST            (4*1024)

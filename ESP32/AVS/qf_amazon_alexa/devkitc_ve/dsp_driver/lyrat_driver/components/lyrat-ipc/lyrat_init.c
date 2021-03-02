@@ -187,7 +187,6 @@ void set_ql_dsp_detected_state(int offset)
     va_dsp_tap_to_talk_start();
     lyrat_start_capture();
 
-#if 1
     //fill raw mic data buffer to the half-full
     ringbuf_t *rb = dd.raw_mic_data;
     while(rb->fill_cnt < (rb->size/2) )
@@ -203,20 +202,6 @@ void set_ql_dsp_detected_state(int offset)
         if(rb->fill_cnt >= (rb->size/2))
             break;
     }
-#else
-    //fill raw mic data buffer to the full
-    ringbuf_t *rb = dd.raw_mic_data;
-    if((rb->size - rb->fill_cnt) > sizeof(zero_data_buf))
-        rb_write(rb, (uint8_t *)zero_data_buf, sizeof(zero_data_buf), 2);
-    if((rb->size - rb->fill_cnt) > sizeof(zero_data_buf))
-        rb_write(rb, (uint8_t *)zero_data_buf, sizeof(zero_data_buf), 2);
-
-    rb = dd.resampled_mic_data;
-    if((rb->size - rb->fill_cnt) > sizeof(zero_data_buf))
-        rb_write(rb, (uint8_t *)zero_data_buf, sizeof(zero_data_buf), 2);
-    if((rb->size - rb->fill_cnt) > sizeof(zero_data_buf))
-        rb_write(rb, (uint8_t *)zero_data_buf, sizeof(zero_data_buf), 2);
-#endif
     
 
 //    printf("%s: raw_mic_data fill_cnt=%d, resampled_mic_data=%d\n", TAG, dd.raw_mic_data->fill_cnt, dd.resampled_mic_data->fill_cnt); 
@@ -330,15 +315,6 @@ static int check_qf_dsp_state(void)
 {
     if(ql_dsp_state_ready == 1)
     {
-#if 0 //there might be data from ql dsp before this, so disable
-      memset(zero_data_buf, 0 , sizeof(zero_data_buf));
-
-      rb_write(dd.raw_mic_data, (uint8_t *)zero_data_buf, sizeof(zero_data_buf), 10);
-      rb_write(dd.raw_mic_data, (uint8_t *)zero_data_buf, sizeof(zero_data_buf), 10);
-#endif
-//rb_reset(dd.resampled_mic_data);
-//      va_dsp_tap_to_talk_start();
-    
       ql_dsp_state_ready = 2;
     }
     check_stream_kp_state();
@@ -392,19 +368,10 @@ static void resample_rb_data_task(void *arg)
             resampler_state = 2;
             sent_len = (SAMPLE_SZ/3);
             //first need to empty raw_mic_data filled
-#if 1
             while(rb_filled(dd.raw_mic_data) >= sent_len)
             {
                 sent_len = rb_read(dd.raw_mic_data, (uint8_t *)dd.data_buf, (SAMPLE_SZ/3), 1);
             }
-#else
-            if(rb_filled(dd.raw_mic_data) >= sent_len)
-            {
-                sent_len = rb_read(dd.raw_mic_data, (uint8_t *)dd.data_buf, (SAMPLE_SZ/3), 1);
-                if(rb_filled(dd.raw_mic_data) >= sent_len)
-                   sent_len = rb_read(dd.raw_mic_data, (uint8_t *)dd.data_buf, (SAMPLE_SZ/3), 1);
-            }
-#endif
             //next read from the stream buffer
             sent_len = rb_read(dd.ql_stream_data, (uint8_t *)dd.data_buf, (SAMPLE_SZ/3), portMAX_DELAY);
         } else {
@@ -565,9 +532,3 @@ printf("%s : Before I2S set clk \n", TAG);
 printf("%s : After WW_detection created\n", TAG);
     xTaskCreate(&resample_rb_data_task, "rb read task", RB_TASK_STACK, NULL, (CONFIG_ESP32_PTHREAD_TASK_PRIO_DEFAULT - 1), NULL);
 }
-/* Example code to disable task switching
-portMUX_TYPE mutex = portMUX_INITIALIZER_UNLOCKED;
-portENTER_CRITICAL(&mutex);
-  vTaskDelay(8000 / portTICK_PERIOD_MS);
-portEXIT_CRITICAL(&mutex);
-*/

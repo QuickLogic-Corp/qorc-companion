@@ -91,16 +91,6 @@ static void wifi_init_sta()
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
-#if 0 //use a fixed config
-    wifi_config_t wifi_config = {
-        .sta = {
-            .ssid = "ASUR300_1",
-            .password = "asusRTN53siva",
-        },
-    };
-    esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config);
-#endif
-
     ESP_ERROR_CHECK(esp_wifi_start() );
 #ifdef CONFIG_PM_ENABLE
     ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MIN_MODEM));
