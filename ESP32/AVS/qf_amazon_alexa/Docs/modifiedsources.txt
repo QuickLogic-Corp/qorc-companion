@@ -1,0 +1,9 @@
+The Following 3 sources file are modified compared to original Espressif SDK files
+
+1. Copy i2s.c to \esp-idf\components\driver\i2s.c
+
+2. Copy periph_console.c to \esp-adf\components\esp_peripherals\periph_console.c
+
+3. copy audio_stream.c to \esp-va-sdk\components\streams\audio_stream.c
+
+
